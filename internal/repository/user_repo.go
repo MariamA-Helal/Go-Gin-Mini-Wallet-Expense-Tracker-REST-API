@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"your_module_name/internal/models"
+	"wallet-api/internal/models"
 
 	"gorm.io/gorm"
 )
@@ -24,25 +24,21 @@ func NewUserRepository(db *gorm.DB) UserRepository {
 
 // CreateUserWithWallet creates a user and an empty wallet in a single transaction
 func (r *userRepo) CreateUserWithWallet(ctx context.Context, user *models.User) error {
-	// Start the Database Transaction
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 1. Create the user first
 		if err := tx.Create(user).Error; err != nil {
-			return err // If it fails, GORM will automatically rollback the transaction
+			return err
 		}
 
-		// 2. Prepare the wallet and link it to the newly created user's ID
 		wallet := &models.Wallet{
 			UserID:  user.ID,
-			Balance: 0, // Initial balance is 0 cents
+			Balance: 0,
 		}
 
-		// 3. Create the wallet
 		if err := tx.Create(wallet).Error; err != nil {
-			return err // If this fails, it rolls back both the wallet and the user creation
+			return err
 		}
 
-		return nil // If we reach this point, the transaction is committed successfully
+		return nil
 	})
 }
 
