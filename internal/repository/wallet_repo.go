@@ -9,15 +9,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// WalletRepository defines all database operations for a wallet
-type WalletRepository interface {
-	CreateWallet(ctx context.Context, wallet *models.Wallet) error
-	GetWalletByUserID(ctx context.Context, userID uint) (*models.Wallet, error)
-	Deposit(ctx context.Context, userID uint, amount int64, category, note string) error
-	Withdraw(ctx context.Context, userID uint, amount int64, category, note string) error
-	Transfer(ctx context.Context, senderUserID, receiverUserID uint, amount int64, category, note string) error
-}
-
 type walletRepo struct {
 	db *gorm.DB
 }

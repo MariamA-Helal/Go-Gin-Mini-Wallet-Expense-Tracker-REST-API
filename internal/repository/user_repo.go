@@ -7,12 +7,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// UserRepository defines database operations for a user
-type UserRepository interface {
-	CreateUserWithWallet(ctx context.Context, user *models.User) error
-	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
-}
-
 type userRepo struct {
 	db *gorm.DB
 }
