@@ -23,6 +23,16 @@ type AuthInput struct {
 }
 
 // Signup handles user registration and wallet auto-generation
+// @Summary Register a new user
+// @Description Create a new account with a username and password.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param user body models.User true "User registration details"
+// @Success 201 {object} map[string]string "message: User created"
+// @Failure 400 {object} map[string]string "error: Invalid input"
+// @Failure 409 {object} map[string]string "error: User already exists"
+// @Router /signup [post]
 func (h *UserHandler) Signup(c *gin.Context) {
 	var input AuthInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -44,6 +54,17 @@ func (h *UserHandler) Signup(c *gin.Context) {
 }
 
 // Login handles user authentication and returns a JWT
+// Login authenticates user credentials and returns a JWT access token.
+// @Summary User login
+// @Description Authenticates username and password, returning a signed JWT Bearer token.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param user body models.User true "Login credentials"
+// @Success 200 {object} map[string]string "token"
+// @Failure 400 {object} map[string]string "error"
+// @Failure 401 {object} map[string]string "error"
+// @Router /login [post]
 func (h *UserHandler) Login(c *gin.Context) {
 	var input AuthInput
 	if err := c.ShouldBindJSON(&input); err != nil {

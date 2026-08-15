@@ -11,6 +11,14 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// @title Wallet & Expense Tracker API
+// @version 1.0
+// @description A secure and concurrent mini-wallet API for tracking expenses.
+// @host localhost:8080
+// @BasePath /api
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name Authorization
 func main() {
 	// 1. Load environment variables from .env file
 	if err := godotenv.Load(); err != nil {

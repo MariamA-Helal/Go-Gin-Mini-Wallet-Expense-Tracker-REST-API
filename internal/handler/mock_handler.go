@@ -21,7 +21,6 @@ func (m *mockWalletService) GetMonthlySummary(ctx context.Context, tokenUserID u
 	return nil, nil
 }
 
-// دوال الميزانية (الجديدة)
 func (m *mockWalletService) SetBudget(ctx context.Context, userID uint, category string, limit int64) error {
 	return nil
 }
@@ -33,12 +32,10 @@ func (m *mockWalletService) Deposit(ctx context.Context, userID uint, amount int
 	return 0, nil
 }
 
-// تم التعديل لإرجاع 3 قيم
 func (m *mockWalletService) Withdraw(ctx context.Context, userID uint, amount int64, category, note string) (int64, string, error) {
 	return 0, "", nil
 }
 
-// تم التعديل لإرجاع 3 قيم
 func (m *mockWalletService) Transfer(ctx context.Context, senderUserID uint, receiverUsername string, amount int64, category, note string) (int64, string, error) {
 	if receiverUsername == "ghost" {
 		return 0, "", errors.New("receiver not found")
@@ -58,7 +55,7 @@ func (m *mockUserService) Signup(ctx context.Context, username, password string)
 	if username == "existinguser" {
 		return errors.New("user already exists")
 	}
-	if len(password) < 8 { // اتعدلت لـ 8 حروف
+	if len(password) < 8 {
 		return errors.New("password must be at least 8 characters long")
 	}
 	return nil

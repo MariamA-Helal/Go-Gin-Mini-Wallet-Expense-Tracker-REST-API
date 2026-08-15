@@ -5,6 +5,11 @@ import (
 	"wallet-api/internal/middleware"
 
 	"github.com/gin-gonic/gin"
+
+	_ "wallet-api/docs"
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // SetupRouter configures all the API routes
@@ -18,8 +23,7 @@ func SetupRouter(userHandler *handler.UserHandler, walletHandler *handler.Wallet
 		api.POST("/login", userHandler.Login)
 	}
 
-	// Protected Routes (تتطلب JWT Token)
-	// Protected Routes (تتطلب JWT Token)
+	// Protected Routes
 	wallet := api.Group("/wallet")
 	wallet.Use(middleware.RequireAuth())
 	{
@@ -34,6 +38,8 @@ func SetupRouter(userHandler *handler.UserHandler, walletHandler *handler.Wallet
 		wallet.PUT("/budgets/:category", walletHandler.SetBudget)
 		wallet.GET("/budgets/status", walletHandler.GetBudgetStatus)
 	}
+
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	return r
 }

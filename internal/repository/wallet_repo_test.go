@@ -79,51 +79,147 @@ func TestTransfer_TableDriven(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewWalletRepository(db)
 
-	// Setup users and wallets
+	// Setup users
 	user1 := models.User{Username: "sender", Password: "123", Role: "user"}
 	user2 := models.User{Username: "receiver", Password: "123", Role: "user"}
 	db.Create(&user1)
 	db.Create(&user2)
 
-	wallet1 := models.Wallet{UserID: user1.ID, Balance: 10000} // Sender has 100 EGP (10000 Cents)
-	wallet2 := models.Wallet{UserID: user2.ID, Balance: 5000}  // Receiver has 50 EGP (5000 Cents)
+	// Setup wallets explicitly linked to users
+	wallet1 := models.Wallet{UserID: user1.ID, Balance: 10000}
+	wallet2 := models.Wallet{UserID: user2.ID, Balance: 5000}
 	db.Create(&wallet1)
 	db.Create(&wallet2)
 
 	tests := []struct {
-		name       string
-		senderID   uint
-		receiverID uint
-		amount     int64
-		expectErr  bool
+		name          string
+		setupBalances func(w1, w2 *models.Wallet)
+		senderArg     uint
+		receiverArg   uint
+		amount        int64
+		expectErr     bool
+		expectedW1Bal int64
+		expectedW2Bal int64
 	}{
-		{"Valid Transfer", user1.ID, user2.ID, 2000, false},
-		{"Zero Amount Transfer", user1.ID, user2.ID, 0, true},
-		{"Negative Amount Transfer", user1.ID, user2.ID, -500, true},
-		{"Insufficient Funds", user1.ID, user2.ID, 20000, true}, // Trying to send 200 EGP while having 100
-		{"Transfer to Self", user1.ID, user1.ID, 1000, true},    // Cannot send to yourself
-		{"Sender Not Found", 999, user2.ID, 1000, true},
-		{"Receiver Not Found", user1.ID, 999, 1000, true},
+		{
+			name: "Valid Transfer",
+			setupBalances: func(w1, w2 *models.Wallet) {
+				w1.Balance = 10000
+				w2.Balance = 5000
+				db.Save(w1)
+				db.Save(w2)
+			},
+			senderArg:     wallet1.ID,
+			receiverArg:   wallet2.ID,
+			amount:        2000,
+			expectErr:     false,
+			expectedW1Bal: 8000,
+			expectedW2Bal: 7000,
+		},
+		{
+			name: "Zero Amount Transfer",
+			setupBalances: func(w1, w2 *models.Wallet) {
+				w1.Balance = 10000
+				w2.Balance = 5000
+				db.Save(w1)
+				db.Save(w2)
+			},
+			senderArg:     wallet1.ID,
+			receiverArg:   wallet2.ID,
+			amount:        0,
+			expectErr:     true,
+			expectedW1Bal: 10000,
+			expectedW2Bal: 5000,
+		},
+		{
+			name: "Negative Amount Transfer",
+			setupBalances: func(w1, w2 *models.Wallet) {
+				w1.Balance = 10000
+				w2.Balance = 5000
+				db.Save(w1)
+				db.Save(w2)
+			},
+			senderArg:     wallet1.ID,
+			receiverArg:   wallet2.ID,
+			amount:        -500,
+			expectErr:     true,
+			expectedW1Bal: 10000,
+			expectedW2Bal: 5000,
+		},
+		{
+			name: "Insufficient Funds",
+			setupBalances: func(w1, w2 *models.Wallet) {
+				w1.Balance = 10000
+				w2.Balance = 5000
+				db.Save(w1)
+				db.Save(w2)
+			},
+			senderArg:     wallet1.ID,
+			receiverArg:   wallet2.ID,
+			amount:        20000,
+			expectErr:     true,
+			expectedW1Bal: 10000,
+			expectedW2Bal: 5000,
+		},
+		{
+			name: "Transfer to Self",
+			setupBalances: func(w1, w2 *models.Wallet) {
+				w1.Balance = 10000
+				w2.Balance = 5000
+				db.Save(w1)
+				db.Save(w2)
+			},
+			senderArg:     wallet1.ID,
+			receiverArg:   wallet1.ID,
+			amount:        1000,
+			expectErr:     true,
+			expectedW1Bal: 10000,
+			expectedW2Bal: 5000,
+		},
+		{
+			name:          "Sender Not Found",
+			setupBalances: func(w1, w2 *models.Wallet) {},
+			senderArg:     999,
+			receiverArg:   wallet2.ID,
+			amount:        1000,
+			expectErr:     true,
+		},
+		{
+			name: "Receiver Not Found",
+			setupBalances: func(w1, w2 *models.Wallet) {
+				w1.Balance = 10000
+				db.Save(w1)
+			},
+			senderArg:   wallet1.ID,
+			receiverArg: 999,
+			amount:      1000,
+			expectErr:   true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := repo.Transfer(context.Background(), tt.senderID, tt.receiverID, tt.amount, "Gift", "Test Note")
+			if tt.setupBalances != nil {
+				tt.setupBalances(&wallet1, &wallet2)
+			}
+
+			err := repo.Transfer(context.Background(), tt.senderArg, tt.receiverArg, tt.amount, "Gift", "Test Note")
 			if (err != nil) != tt.expectErr {
 				t.Errorf("Transfer() error = %v, expectErr %v", err, tt.expectErr)
 			}
+
+			if !tt.expectErr {
+				var w1, w2 models.Wallet
+				db.First(&w1, wallet1.ID)
+				db.First(&w2, wallet2.ID)
+
+				if w1.Balance != tt.expectedW1Bal {
+					t.Errorf("Expected sender balance %d, got %d", tt.expectedW1Bal, w1.Balance)
+				}
+				if w2.Balance != tt.expectedW2Bal {
+					t.Errorf("Expected receiver balance %d, got %d", tt.expectedW2Bal, w2.Balance)
+				}
+			}
 		})
-	}
-
-	// Verify final balances after the only valid transfer (2000 cents)
-	var w1, w2 models.Wallet
-	db.First(&w1, wallet1.ID)
-	db.First(&w2, wallet2.ID)
-
-	if w1.Balance != 8000 {
-		t.Errorf("Expected sender balance 8000, got %d", w1.Balance)
-	}
-	if w2.Balance != 7000 {
-		t.Errorf("Expected receiver balance 7000, got %d", w2.Balance)
 	}
 }

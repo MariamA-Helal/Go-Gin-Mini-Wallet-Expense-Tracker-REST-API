@@ -1,0 +1,108 @@
+basePath: /api
+definitions:
+  handler.TransactionInput:
+    properties:
+      amount:
+        type: integer
+      category:
+        type: string
+      note:
+        type: string
+    required:
+    - amount
+    - category
+    type: object
+  models.User:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      role:
+        type: string
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: A secure and concurrent mini-wallet API for tracking expenses.
+  title: Wallet & Expense Tracker API
+  version: "1.0"
+paths:
+  /signup:
+    post:
+      consumes:
+      - application/json
+      description: Create a new account with a username and password.
+      parameters:
+      - description: User registration details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.User'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 'message: User created'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: 'error: Invalid input'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: 'error: User already exists'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - Auth
+  /wallet/withdraw:
+    post:
+      consumes:
+      - application/json
+      description: Withdraws a specified amount from the user wallet and checks budget
+        limits.
+      parameters:
+      - description: Withdrawal details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.TransactionInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: message, balance, warning
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Withdraw funds from wallet
+      tags:
+      - Wallet
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

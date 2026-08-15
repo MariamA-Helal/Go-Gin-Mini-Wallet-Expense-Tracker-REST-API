@@ -14,6 +14,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// getJWTSecret fetches the JWT secret key from environment variables or falls back to a default development key.
 func getJWTSecret() []byte {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
@@ -28,12 +29,14 @@ type userService struct {
 	repo repository.UserRepository
 }
 
+// NewUserService initializes a new UserService with the user repository dependency.
 func NewUserService(repo repository.UserRepository) UserService {
 	return &userService{repo: repo}
 }
 
 // ---------------- Validation Helpers ----------------
 
+// validateUsername checks if the username meets length restrictions and format rules.
 func validateUsername(username string) error {
 	trimmed := strings.TrimSpace(username)
 	if trimmed == "" {
@@ -51,6 +54,7 @@ func validateUsername(username string) error {
 	return nil
 }
 
+// validatePasswordComplexity enforces strong password standards including uppercase, lowercase, numbers, and symbols.
 func validatePasswordComplexity(password string) error {
 	if len(password) < 8 {
 		return errors.New("password must be at least 8 characters long")
@@ -83,6 +87,7 @@ func validatePasswordComplexity(password string) error {
 
 // ---------------- Service Methods ----------------
 
+// Signup validates input constraints, hashes the password securely, and registers a new user with an initial wallet.
 func (s *userService) Signup(ctx context.Context, username, password string) error {
 	if err := validateUsername(username); err != nil {
 		return err
@@ -105,8 +110,7 @@ func (s *userService) Signup(ctx context.Context, username, password string) err
 	return s.repo.CreateUserWithWallet(ctx, user)
 }
 
-// ... كملي باقي الكود بتاع الـ Login زي ما هو
-
+// Login authenticates user credentials and generates a signed JWT access token.
 func (s *userService) Login(ctx context.Context, username, password string) (string, error) {
 	user, err := s.repo.GetUserByUsername(ctx, username)
 	if err != nil {
