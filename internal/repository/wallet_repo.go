@@ -33,7 +33,6 @@ func (r *walletRepo) GetWalletByUserID(ctx context.Context, userID uint) (*model
 	return &wallet, nil
 }
 
-// Deposit adds money and records the transaction atomically
 func (r *walletRepo) Deposit(ctx context.Context, userID uint, amount int64, category, note string) error {
 	if amount <= 0 {
 		return errors.New("deposit amount must be greater than zero")
@@ -43,7 +42,7 @@ func (r *walletRepo) Deposit(ctx context.Context, userID uint, amount int64, cat
 		var wallet models.Wallet
 		// Row-Level Locking: SELECT ... FOR UPDATE
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", userID).First(&wallet).Error; err != nil {
-			return err // Will return error if user/wallet doesn't exist
+			return errors.New("wallet not found")
 		}
 
 		wallet.Balance += amount
@@ -97,81 +96,149 @@ func (r *walletRepo) Withdraw(ctx context.Context, userID uint, amount int64, ca
 }
 
 // Transfer moves money between two wallets securely, avoiding deadlocks
-func (r *walletRepo) Transfer(ctx context.Context, senderUserID, receiverUserID uint, amount int64, category, note string) error {
+func (r *walletRepo) Transfer(ctx context.Context, senderWalletID, receiverWalletID uint, amount int64, category, note string) error {
 	if amount <= 0 {
 		return errors.New("transfer amount must be greater than zero")
 	}
-	if senderUserID == receiverUserID {
-		return errors.New("cannot transfer to the same account")
+	if senderWalletID == receiverWalletID {
+		return errors.New("cannot transfer money to yourself")
 	}
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// 1. Deadlock Prevention: Always lock the smaller ID first
-		account1ID, account2ID := senderUserID, receiverUserID
-		if account1ID > account2ID {
-			account1ID, account2ID = account2ID, account1ID
-		}
+		var firstWallet, secondWallet models.Wallet
+		var firstID, secondID uint
 
-		// Lock the first account
-		var wallet1 models.Wallet
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", account1ID).First(&wallet1).Error; err != nil {
-			return err
-		}
-
-		// Lock the second account
-		var wallet2 models.Wallet
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", account2ID).First(&wallet2).Error; err != nil {
-			return err
-		}
-
-		// 2. Identify Sender and Receiver wallets
-		var senderWallet, receiverWallet *models.Wallet
-		if senderUserID == wallet1.UserID {
-			senderWallet = &wallet1
-			receiverWallet = &wallet2
+		// Order IDs in ascending order to prevent deadlocks under concurrent execution
+		if senderWalletID < receiverWalletID {
+			firstID, secondID = senderWalletID, receiverWalletID
 		} else {
-			senderWallet = &wallet2
-			receiverWallet = &wallet1
+			firstID, secondID = receiverWalletID, senderWalletID
 		}
 
-		// 3. Edge Case: Insufficient Funds
-		if senderWallet.Balance < amount {
+		// Lock the first wallet row (lower ID)
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&firstWallet, firstID).Error; err != nil {
+			return errors.New("wallet not found")
+		}
+		// Lock the second wallet row (higher ID)
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&secondWallet, secondID).Error; err != nil {
+			return errors.New("wallet not found")
+		}
+
+		// Map sender and receiver pointers based on locked wallet instances
+		var sender, receiver *models.Wallet
+		if senderWalletID == firstWallet.ID {
+			sender = &firstWallet
+			receiver = &secondWallet
+		} else {
+			sender = &secondWallet
+			receiver = &firstWallet
+		}
+
+		if sender.Balance < amount {
 			return errors.New("insufficient funds")
 		}
 
-		// 4. Update Balances
-		senderWallet.Balance -= amount
-		receiverWallet.Balance += amount
+		// Apply balance updates
+		sender.Balance -= amount
+		receiver.Balance += amount
 
-		if err := tx.Save(senderWallet).Error; err != nil {
+		if err := tx.Save(sender).Error; err != nil {
 			return err
 		}
-		if err := tx.Save(receiverWallet).Error; err != nil {
+		if err := tx.Save(receiver).Error; err != nil {
 			return err
 		}
 
-		// 5. Record Transaction History for Sender (Transfer Out)
-		txOut := models.Transaction{
-			WalletID:        senderWallet.ID,
+		// Record audit transactions (Transfer Out / Transfer In)
+		outTx := models.Transaction{
+			WalletID:        sender.ID,
 			Type:            "transfer_out",
 			Amount:          amount,
 			Category:        category,
 			Note:            note,
-			RelatedWalletID: &receiverWallet.ID,
+			RelatedWalletID: &receiver.ID,
 		}
-		if err := tx.Create(&txOut).Error; err != nil {
-			return err
-		}
-
-		// 6. Record Transaction History for Receiver (Transfer In)
-		txIn := models.Transaction{
-			WalletID:        receiverWallet.ID,
+		inTx := models.Transaction{
+			WalletID:        receiver.ID,
 			Type:            "transfer_in",
 			Amount:          amount,
 			Category:        category,
 			Note:            note,
-			RelatedWalletID: &senderWallet.ID,
+			RelatedWalletID: &sender.ID,
 		}
-		return tx.Create(&txIn).Error
+
+		if err := tx.Create(&outTx).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&inTx).Error; err != nil {
+			return err
+		}
+
+		return nil
 	})
+}
+
+// GetTransactionsByWalletID fetches history with dynamic filters
+func (r *walletRepo) GetTransactionsByWalletID(ctx context.Context, walletID uint, filter models.TransactionFilter) ([]models.Transaction, error) {
+	var transactions []models.Transaction
+	query := r.db.WithContext(ctx).Where("wallet_id = ?", walletID)
+
+	if filter.Page < 1 {
+		filter.Page = 1
+	}
+	if filter.Limit < 1 {
+		filter.Limit = 10
+	} else if filter.Limit > 100 {
+		filter.Limit = 100
+	}
+	if filter.Category != "" {
+		query = query.Where("category = ?", filter.Category)
+	}
+	if filter.From != "" {
+		query = query.Where("created_at >= ?", filter.From)
+	}
+	if filter.To != "" {
+		query = query.Where("created_at <= ?", filter.To)
+	}
+
+	offset := (filter.Page - 1) * filter.Limit
+	err := query.Order("created_at desc").Limit(filter.Limit).Offset(offset).Find(&transactions).Error
+
+	return transactions, err
+}
+
+// GetMonthlySummary groups transactions by category for the current month
+func (r *walletRepo) GetMonthlySummary(ctx context.Context, walletID uint) ([]models.CategorySummary, error) {
+	var summary []models.CategorySummary
+
+	err := r.db.WithContext(ctx).
+		Model(&models.Transaction{}).
+		Select("category, SUM(amount) as total").
+		Where("wallet_id = ? AND created_at >= date_trunc('month', CURRENT_DATE)", walletID).
+		Group("category").
+		Scan(&summary).Error
+
+	return summary, err
+}
+
+func (r *walletRepo) SetBudget(ctx context.Context, budget *models.Budget) error {
+	var existing models.Budget
+	err := r.db.WithContext(ctx).Where("user_id = ? AND category = ?", budget.UserID, budget.Category).First(&existing).Error
+	if err == nil {
+		existing.MonthlyLimit = budget.MonthlyLimit
+		return r.db.Save(&existing).Error
+	}
+	return r.db.Create(budget).Error
+}
+
+func (r *walletRepo) GetBudgetByCategory(ctx context.Context, userID uint, category string) (*models.Budget, error) {
+	var budget models.Budget
+	err := r.db.WithContext(ctx).Where("user_id = ? AND category = ?", userID, category).First(&budget).Error
+	return &budget, err
+}
+
+func (r *walletRepo) GetAllBudgets(ctx context.Context, userID uint) ([]models.Budget, error) {
+	var budgets []models.Budget
+	err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&budgets).Error
+	return budgets, err
 }

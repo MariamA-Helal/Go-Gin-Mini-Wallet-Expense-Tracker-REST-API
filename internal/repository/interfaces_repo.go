@@ -18,4 +18,11 @@ type WalletRepository interface {
 	Deposit(ctx context.Context, userID uint, amount int64, category, note string) error
 	Withdraw(ctx context.Context, userID uint, amount int64, category, note string) error
 	Transfer(ctx context.Context, senderUserID, receiverUserID uint, amount int64, category, note string) error
+
+	GetTransactionsByWalletID(ctx context.Context, walletID uint, filter models.TransactionFilter) ([]models.Transaction, error)
+	GetMonthlySummary(ctx context.Context, walletID uint) ([]models.CategorySummary, error)
+
+	SetBudget(ctx context.Context, budget *models.Budget) error
+	GetBudgetByCategory(ctx context.Context, userID uint, category string) (*models.Budget, error)
+	GetAllBudgets(ctx context.Context, userID uint) ([]models.Budget, error)
 }
