@@ -2,36 +2,11 @@ package service
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"wallet-api/internal/models"
 
 	"golang.org/x/crypto/bcrypt"
 )
-
-// ---------------------------------------------------------
-// 1. Mock Repository Setup
-// ---------------------------------------------------------
-
-type mockUserRepo struct {
-	users map[string]*models.User
-}
-
-func (m *mockUserRepo) CreateUserWithWallet(ctx context.Context, user *models.User) error {
-	if _, exists := m.users[user.Username]; exists {
-		return errors.New("user already exists")
-	}
-	user.ID = uint(len(m.users) + 1)
-	m.users[user.Username] = user
-	return nil
-}
-
-func (m *mockUserRepo) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
-	if user, exists := m.users[username]; exists {
-		return user, nil
-	}
-	return nil, errors.New("user not found")
-}
 
 // ---------------------------------------------------------
 // 2. Table-Driven Tests
@@ -47,10 +22,13 @@ func TestSignup_TableDriven(t *testing.T) {
 		password  string
 		expectErr bool
 	}{
-		{"Valid Signup", "mariam", "securepass123", false},
-		{"Short Username", "ma", "123456", true},
-		{"Short Password", "ahmed", "123", true},
-		{"Duplicate User", "mariam", "newpass123", true}, // Should fail because 'mariam' was created in test 1
+		{"Valid Signup", "mariam", "SecurePass123*", false},
+		{"Short Username", "ma", "SecurePass123*", true},
+		{"Short Password", "ahmed", "A1*bc", true},
+		{"No Uppercase", "ahmed", "securepass123*", true},
+		{"No Number", "ahmed", "SecurePass*", true},
+		{"No Special Char", "ahmed", "SecurePass123", true},
+		{"Duplicate User", "mariam", "NewSecurePass123*", true},
 	}
 
 	for _, tt := range tests {
@@ -67,8 +45,7 @@ func TestLogin_TableDriven(t *testing.T) {
 	mockRepo := &mockUserRepo{users: make(map[string]*models.User)}
 	svc := NewUserService(mockRepo)
 
-	// Pre-seed a valid user into our mock database
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("correctpass"), bcrypt.DefaultCost)
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("CorrectPass123*"), bcrypt.DefaultCost)
 	mockRepo.users["validuser"] = &models.User{
 		ID:       1,
 		Username: "validuser",
@@ -82,9 +59,9 @@ func TestLogin_TableDriven(t *testing.T) {
 		password  string
 		expectErr bool
 	}{
-		{"Valid Login", "validuser", "correctpass", false},
-		{"Wrong Password", "validuser", "wrongpass", true},
-		{"Non-Existent User", "ghostuser", "anypass", true},
+		{"Valid Login", "validuser", "CorrectPass123*", false},
+		{"Wrong Password", "validuser", "WrongPass123*", true},
+		{"Non-Existent User", "ghostuser", "AnyPass123*", true},
 	}
 
 	for _, tt := range tests {
