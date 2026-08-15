@@ -3,7 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"os"
+	"strings"
 	"time"
+	"unicode"
 	"wallet-api/internal/models"
 	"wallet-api/internal/repository"
 
@@ -11,25 +14,83 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// In a real app, this should be loaded from environment variables (.env)
-var jwtSecretKey = []byte("super-secret-key-change-in-production")
+func getJWTSecret() []byte {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		return []byte("super-secret-key-change-in-production-fallback")
+	}
+	return []byte(secret)
+}
+
+var jwtSecretKey = getJWTSecret()
 
 type userService struct {
 	repo repository.UserRepository
 }
 
-// NewUserService creates a new instance of UserService
 func NewUserService(repo repository.UserRepository) UserService {
 	return &userService{repo: repo}
 }
 
-// Signup hashes the password and creates the user (with their auto-wallet via repo)
-func (s *userService) Signup(ctx context.Context, username, password string) error {
-	if len(username) < 3 || len(password) < 6 {
-		return errors.New("invalid input: username must be >= 3 and password >= 6 characters")
+// ---------------- Validation Helpers ----------------
+
+func validateUsername(username string) error {
+	trimmed := strings.TrimSpace(username)
+	if trimmed == "" {
+		return errors.New("username cannot be empty or whitespace")
+	}
+	if strings.Contains(username, " ") {
+		return errors.New("username cannot contain spaces")
+	}
+	if len(username) < 10 {
+		return errors.New("username must be at least 10 characters long")
+	}
+	if len(username) > 30 {
+		return errors.New("username is too long (max 30 characters)")
+	}
+	return nil
+}
+
+func validatePasswordComplexity(password string) error {
+	if len(password) < 8 {
+		return errors.New("password must be at least 8 characters long")
 	}
 
-	// Hash the password using bcrypt
+	var hasUpper, hasLower, hasNumber, hasSpecial bool
+	for _, char := range password {
+		if char > unicode.MaxASCII {
+			return errors.New("password contains invalid characters (only English letters and standard symbols allowed)")
+		}
+
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsNumber(char) || unicode.IsDigit(char):
+			hasNumber = true
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
+			hasSpecial = true
+		}
+	}
+
+	if !hasUpper || !hasLower || !hasNumber || !hasSpecial {
+		return errors.New("password must contain at least one uppercase letter, one lowercase letter, one number, and one special character")
+	}
+
+	return nil
+}
+
+// ---------------- Service Methods ----------------
+
+func (s *userService) Signup(ctx context.Context, username, password string) error {
+	if err := validateUsername(username); err != nil {
+		return err
+	}
+	if err := validatePasswordComplexity(password); err != nil {
+		return err
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -38,37 +99,30 @@ func (s *userService) Signup(ctx context.Context, username, password string) err
 	user := &models.User{
 		Username: username,
 		Password: string(hashedPassword),
-		Role:     "user", // Default role
+		Role:     "user",
 	}
 
 	return s.repo.CreateUserWithWallet(ctx, user)
 }
 
-// Login verifies credentials and returns a JWT token
+// ... كملي باقي الكود بتاع الـ Login زي ما هو
+
 func (s *userService) Login(ctx context.Context, username, password string) (string, error) {
-	// 1. Fetch user from DB
 	user, err := s.repo.GetUserByUsername(ctx, username)
 	if err != nil {
-		return "", errors.New("invalid credentials") // We don't expose if the user exists or not for security
+		return "", errors.New("invalid credentials")
 	}
 
-	// 2. Compare passwords
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		return "", errors.New("invalid credentials")
 	}
 
-	// 3. Generate JWT Token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id":  user.ID,
 		"username": user.Username,
 		"role":     user.Role,
-		"exp":      time.Now().Add(time.Hour * 72).Unix(), // Token expires in 72 hours
+		"exp":      time.Now().Add(time.Hour * 72).Unix(),
 	})
 
-	tokenString, err := token.SignedString(jwtSecretKey)
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+	return token.SignedString(jwtSecretKey)
 }

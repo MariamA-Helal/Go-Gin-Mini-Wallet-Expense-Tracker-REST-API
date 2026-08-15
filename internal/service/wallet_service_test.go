@@ -7,25 +7,6 @@ import (
 )
 
 // ---------------------------------------------------------
-// Mock Wallet Repository
-// ---------------------------------------------------------
-type mockWalletRepo struct{}
-
-func (m *mockWalletRepo) CreateWallet(ctx context.Context, wallet *models.Wallet) error { return nil }
-func (m *mockWalletRepo) GetWalletByUserID(ctx context.Context, userID uint) (*models.Wallet, error) {
-	return &models.Wallet{UserID: userID, Balance: 1000}, nil
-}
-func (m *mockWalletRepo) Deposit(ctx context.Context, userID uint, amount int64, category, note string) error {
-	return nil
-}
-func (m *mockWalletRepo) Withdraw(ctx context.Context, userID uint, amount int64, category, note string) error {
-	return nil
-}
-func (m *mockWalletRepo) Transfer(ctx context.Context, senderUserID, receiverUserID uint, amount int64, category, note string) error {
-	return nil // Assume DB operation succeeds for testing service logic
-}
-
-// ---------------------------------------------------------
 // Tests
 // ---------------------------------------------------------
 func TestWalletService_Transfer_TableDriven(t *testing.T) {
@@ -54,7 +35,7 @@ func TestWalletService_Transfer_TableDriven(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := svc.Transfer(context.Background(), tt.senderID, tt.receiverUsername, tt.amount, "Gift", "Note")
+			_, _, err := svc.Transfer(context.Background(), tt.senderID, tt.receiverUsername, tt.amount, "Gift", "Note")
 			if (err != nil) != tt.expectErr {
 				t.Errorf("Transfer() error = %v, expectErr %v", err, tt.expectErr)
 			}

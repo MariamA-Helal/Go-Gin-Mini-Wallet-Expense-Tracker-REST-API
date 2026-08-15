@@ -22,13 +22,19 @@ func TestSignup_TableDriven(t *testing.T) {
 		password  string
 		expectErr bool
 	}{
-		{"Valid Signup", "mariam", "SecurePass123*", false},
-		{"Short Username", "ma", "SecurePass123*", true},
+		{"Valid Signup", "mariam1234", "SecurePass123*", false},
+		{"Short Username", "mariam", "SecurePass123*", true},
 		{"Short Password", "ahmed", "A1*bc", true},
 		{"No Uppercase", "ahmed", "securepass123*", true},
 		{"No Number", "ahmed", "SecurePass*", true},
 		{"No Special Char", "ahmed", "SecurePass123", true},
 		{"Duplicate User", "mariam", "NewSecurePass123*", true},
+
+		{"Empty Username", "", "SecurePass123*", true},
+		{"Whitespace Username", "   ", "SecurePass123*", true},
+		{"Username With Spaces", "mariam helal", "SecurePass123*", true},
+		{"Arabic Password", "mariam123", "باسووردقوي123*", true},
+		{"Very Long Username", "thisusernameiswaytoolongtobeaccepted", "SecurePass123*", true},
 	}
 
 	for _, tt := range tests {
