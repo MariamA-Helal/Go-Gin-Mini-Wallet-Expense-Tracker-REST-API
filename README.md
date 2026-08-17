@@ -155,6 +155,6 @@ go test ./... -v
 ---
 
 ## 👤 Author
-**Mariam Amr Ibrahim Helal**
+**Mariam Amr Helal**
 * GitHub: [Insert Your GitHub Link Here]
 * DockerHub: [https://hub.docker.com/r/mariamamr286/wallet-api](https://hub.docker.com/r/mariamamr286/wallet-api)
