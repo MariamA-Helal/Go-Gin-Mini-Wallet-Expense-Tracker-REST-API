@@ -1,109 +1,160 @@
-# 💰 FinTech Mini-Wallet & Expense Tracker REST API
+# 🚀 Go Wallet & Expense Tracker REST API - Capstone Project
 
-> A production-ready, highly secure, and concurrent mini-wallet and expense-tracking backend built with **Go**, **Gin**, **GORM**, and **PostgreSQL**. Designed with strict transactional consistency to handle financial assets without race conditions.
+![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go)
+![Gin](https://img.shields.io/badge/Gin-Framework-00ADD8?style=for-the-badge&logo=go)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?style=for-the-badge&logo=postgresql)
+![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?style=for-the-badge&logo=docker)
+![Swagger](https://img.shields.io/badge/Swagger-API_Docs-85EA2D?style=for-the-badge&logo=swagger)
+
+A robust, highly scalable, and fully containerized financial RESTful API built with **Go (Golang)**, **Gin Framework**, **GORM**, and **PostgreSQL**. This project serves as a secure mini-wallet system supporting financial transactions, concurrent transfers, and expense tracking.
+
+Developed as a Capstone Backend Engineering Project, focusing on **ACID compliance**, **Concurrency Safety (Race Condition Prevention)**, database architecture, and containerization.
 
 ---
 
-## 🚀 Project Overview
-Unlike standard toy CRUD applications, this project focuses on **money-movement logic**, data atomicity, and concurrency safety. It features strict RBAC, JWT authentication, pagination, financial auditing, monthly budgeting with automated warnings, and a complete Swagger UI playground.
+## 🌟 Key Features
+
+### Security & Authentication
+* **JWT-Based Authentication:** Secure endpoints using JSON Web Tokens (Bearer Auth).
+* **Data Isolation:** Complete data privacy where users can only view, manage, and transfer funds associated with their authenticated accounts.
+
+### Core Financial Logic & Concurrency
+* **Wallet Management:** Seamless deposits and withdrawals reflecting real-time balances.
+* **Concurrency-Safe Transfers:** Enterprise-grade fund transfers using **Atomic Database Transactions** and **Pessimistic Row-Level Locking (`FOR UPDATE`)** to strictly prevent race conditions, double-spending, and negative balances during simultaneous requests.
+* **Transaction History & Summary:** Comprehensive tracking of all financial movements with aggregated summaries for expense analysis.
+* **Budget Tracking:** Ability to set custom budgets per expense category and monitor budget status in real-time.
+
+### DevOps & Architecture
+* **Clean Architecture:** Strict separation of concerns (Models, Repositories, Services, Handlers, Routers).
+* **Dockerized Environment:** Multi-stage Docker builds and `docker-compose` orchestration for zero-configuration setups and database provisioning.
+* **Automated Testing:** Extensive unit and concurrency testing to validate transaction safety under heavy concurrent loads.
+* **API Documentation:** Interactive Swagger UI integration for seamless testing and endpoint exploration.
 
 ---
 
-## 🏛️ Architecture & Folder Structure
-The project follows **Clean Architecture** principles, separating concerns across distinct layers:
+## 🛠️ Tech Stack & Tooling
+
+* **Language:** Go (Golang)
+* **Framework:** Gin (`github.com/gin-gonic/gin`)
+* **Database & ORM:** PostgreSQL & GORM (`gorm.io/gorm`)
+* **Authentication:** JWT (`golang-jwt/jwt`) & bcrypt for password hashing
+* **Containerization:** Docker & Docker Compose
+* **Testing:** Go testing package (Concurrency & Unit Tests)
+* **Documentation:** Swaggo (Swagger UI)
+
+---
+
+## 📁 Architecture & Project Structure
+
+The codebase is organized into isolated layers to ensure decoupling and ease of testing:
 
 ```text
-wallet-api/
-├── cmd/
-│   └── api/
-│       └── main.go          # Application entrypoint & dependency injection
+Wallet/
+├── cmd/api/                 # 🚀 Entry point of the application
+├── docs/                    # 📖 Auto-generated Swagger documentation files
 ├── internal/
-│   ├── database/            # PostgreSQL & GORM connection setup
-│   ├── errors/              # Centralized custom error definitions
-│   ├── handler/             # HTTP REST controllers (Gin framework)
-│   ├── middleware/          # JWT Auth, RBAC & Rate Limiter security layers
-│   ├── models/              # GORM database entities & DTOs
-│   ├── repository/          # Data access layer (with Row-Level Locking)
-│   ├── router/              # API route groupings & Swagger bindings
-│   └── service/             # Core business logic, validation & budget rules
-├── docs/                    # Auto-generated Swagger documentation files
-├── .env.example             # Environment variables template
-├── Dockerfile               # Container build configuration
-├── docker-compose.yml       # Multi-container orchestration (App + DB)
-└── README.md                # Project documentation
+│   ├── database/            # 🐘 PostgreSQL connection & auto-migrations
+│   ├── errors/              # 🛑 Centralized custom error handling
+│   ├── handler/             # 🌐 HTTP layer, parsing requests, and returning JSON
+│   ├── models/              # 📦 Data structures, DTOs, and GORM schema definitions
+│   ├── repository/          # 🗄️ Database CRUD logic & Transaction locking (FOR UPDATE)
+│   ├── router/              # 🛤️ API route definitions and middleware injection
+│   └── service/             # ⚙️ Core business logic and validation
+├── Dockerfile               # 🐳 Multi-stage build instructions for the Go API
+├── docker-compose.yml       # 🐙 Orchestration for API and Database containers
+├── go.mod & go.sum          # 📦 Go module dependencies
+└── .env                     # 🔐 Environment variables (Ignored in Git)
 ```
 
-## 💡 Business Logic & Software Engineering Highlights
-### 1. Concurrency & Data Integrity (FinTech-Grade)
-#### **Row-Level Locking (SELECT ... FOR UPDATE):** Used during withdrawals and deposits to prevent Lost Updates and Race Conditions under heavy concurrent requests.
+---
 
-#### **Deadlock Prevention in Transfers:** Peer-to-peer transfers utilize a deterministic locking order (sorting wallet IDs in ascending order before acquiring locks) to completely eliminate circular wait scenarios and database deadlocks.
+## 🚀 Getting Started
 
-**Atomic Transactions:** All balance-modifying operations run inside strict GORM transaction blocks with automatic rollbacks on failure.
+### Prerequisites
+* Docker & Docker Desktop installed.
+* Git installed.
 
-### 2. Security & Hardening 
-#### **JWT Authentication & RBAC:** Secure token-based access with Role-Based Access Control (Users manage only their own wallets; Admins have read-only visibility across accounts).
-
-#### **Rate Limiting Middleware:** IP-based request throttling protecting sensitive endpoints (/signup, /login) against brute-force attacks.
-
-#### **Information Disclosure Defense:** Internal database errors are securely logged on the server side while clients receive sanitized, generic error responses.
-
-#### **Strict Input Validation:** Custom validation rules enforce secure password complexities (Uppercase, Lowercase, Number, Symbol) and strictly formatted usernames.
-
-### 3. Smart Budgeting & Alerts
-#### **Users can set monthly spending limits per category (e.g., "Food", "Rent").**
-
-#### When a withdrawal or transfer is made, the system evaluates the monthly summary via SQL aggregation (GROUP BY) and appends a dynamic warning if the budget cap is exceeded (without blocking the transaction).
-
-## 🛠️ Tech Stack
-### Language: Go (Golang)
-
-### Web Framework: Gin
-
-### ORM: GORM
-
-### Database: PostgreSQL
-
-### Authentication: JWT (golang-jwt/jwt/v5) & Bcrypt
-
-### Documentation: Swagger (swaggo/swag)
-
-### Containerization: Docker & Docker Compose
-
-## 🔌 API Endpoints & Testing (Swagger UI)
-You can interact with and test all API endpoints directly using the built-in Swagger UI playground.
-
-### 1. Start the server (or via Docker).
-
-### 2. Open your browser and navigate to:
-
-```Plaintext
-http://localhost:8080/swagger/index.html
-```
-### 3. Use /api/signup or /api/login to obtain your Bearer Token.
-
-### 4. Click Authorize at the top right of the Swagger UI, enter Bearer <your_token>, and test all protected endpoints (/wallet, /wallet/deposit, /wallet/withdraw, /wallet/transfer, /wallet/budgets, etc.).
-
-
-## 🐳 Running the Application
-### Option 1: Running with Docker Compose
-To run the app and PostgreSQL database together seamlessly using containers:
-
-``` Bash
-docker-compose up --build
+### Option 1: Run via Docker Hub (Fastest)
+You can pull and run the pre-built image directly from Docker Hub without needing the source code:
+```bash
+docker pull mariamamr286/wallet-api:latest
+docker run -p 8080:8080 mariamamr286/wallet-api:latest
 ```
 
-### Option 2: Running Locally without Docker
-Clone the repository and configure your environment variables:
+### Option 2: Build & Run from Source (Development)
+1. **Clone the repository:**
+   ```bash
+   git clone [Your-GitHub-Repository-Link]
+   cd Wallet
+   ```
 
-```Bash
-cp .env.example .env
+2. **Setup Environment Variables:**
+   Create a `.env` file in the root directory and add the following configurations:
+   ```env
+   # Database Configuration
+   DB_HOST=postgres_db
+   DB_USER=postgres
+   DB_PASSWORD=your_password
+   DB_NAME=wallet_db
+   DB_PORT=5432
+   
+   # JWT Secret
+   JWT_SECRET=your_super_secret_key
+   ```
+
+3. **Start the application using Docker Compose:**
+   ```bash
+   docker-compose up --build
+   ```
+   *The database will initialize automatically, and GORM will handle auto-migrations.*
+
+---
+
+## 📡 API Documentation & Endpoints
+
+### 📖 Swagger Documentation
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| `GET`  | `/swagger/*any` | Interactive API Documentation (Swagger UI) | Public |
+
+### 🔐 Authentication
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| `POST` | `/api/signup` | Register a new user | Public |
+| `POST` | `/api/login` | Authenticate and receive JWT | Public |
+
+### 💰 Wallet & Transactions
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| `GET`  | `/api/wallet/` | Retrieve current wallet balance | User |
+| `POST` | `/api/wallet/deposit` | Deposit funds into wallet | User |
+| `POST` | `/api/wallet/withdraw` | Withdraw funds from wallet | User |
+| `POST` | `/api/wallet/transfer` | Securely transfer funds to another user | User |
+| `GET`  | `/api/wallet/transactions` | Get paginated transaction history | User |
+| `GET`  | `/api/wallet/transactions/summary` | Get expense/income summary | User |
+
+### 📊 Budget Management
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| `POST` | `/api/wallet/budgets` | Set a new budget for a category | User |
+| `PUT`  | `/api/wallet/budgets/:category` | Update an existing budget | User |
+| `GET`  | `/api/wallet/budgets/status` | View current spending vs. budget limits | User |
+
+*(Note: Protected API calls require the `Authorization` header formatted as: `Bearer <token>`)*
+
+---
+
+## 🧪 Testing & Concurrency Safety
+The project includes rigorous testing specifically targeting financial race conditions. Using concurrent goroutines, the test suite verifies that multiple simultaneous transfer/withdrawal requests are processed serially via row-level database locks, preventing balance inconsistencies.
+
+To run the full suite of tests:
+```bash
+go test ./... -v
 ```
 
-Run the application:
+---
 
-```Bash
-go run cmd/api/main.go
-```
-
-## ⭐️ Developed with precision, security, and clean architecture.
+## 👤 Author
+**Mariam Amr Ibrahim Helal**
+* GitHub: [Insert Your GitHub Link Here]
+* DockerHub: [https://hub.docker.com/r/mariamamr286/wallet-api](https://hub.docker.com/r/mariamamr286/wallet-api)
