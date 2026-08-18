@@ -12,6 +12,20 @@ Developed as a Capstone Backend Engineering Project, focusing on **ACID complian
 
 ---
 
+## 🧠 System Design & Business Rules
+
+Managing financial data requires strict rules. This project implements the following:
+
+### 1. ACID Transactions & Concurrency Control
+*   **Problem:** If two withdrawal requests happen simultaneously, a user might withdraw more money than their balance allows (Race Condition).
+*   **Solution:** All financial operations (Deposit, Withdrawal, Transfer) are wrapped in **Database Transactions**. We utilize Row-level locking (`SELECT ... FOR UPDATE`) in PostgreSQL to ensure that balance calculations are atomic and sequential.
+
+### 2. Core Business Rules
+*   **Insufficient Funds:** A withdrawal or expense transaction will be strictly blocked at the Service layer if the wallet balance is less than the requested amount.
+*   **Rollback Mechanism:** If an error occurs midway through a transfer (e.g., deducting from Sender succeeds, but adding to Receiver fails), the entire transaction is rolled back. No money is lost or created out of thin air.
+
+---
+
 ## 🌟 Key Features
 
 ### Security & Authentication
@@ -144,8 +158,12 @@ docker run -p 8080:8080 mariamamr286/wallet-api:latest
 
 ---
 
-## 🧪 Testing & Concurrency Safety
-The project includes rigorous testing specifically targeting financial race conditions. Using concurrent goroutines, the test suite verifies that multiple simultaneous transfer/withdrawal requests are processed serially via row-level database locks, preventing balance inconsistencies.
+## 🧪 Testing Strategy
+Testing financial logic is critical. Our test suite includes:
+
+*   **Business Rule Tests:** Asserts that `Withdraw()` returns an `ErrInsufficientFunds` when balance < amount.
+*   **Transaction Rollback Tests:** Verifies that a database failure during a multi-step operation (like transfers) strictly rolls back the state, leaving sender balances unchanged.
+*   **Concurrency & Deadlock Prevention Tests:** Uses Goroutines to simulate simultaneous withdrawals and bidirectional transfers, ensuring Row-level locking (`SELECT ... FOR UPDATE`) prevents race conditions and data anomalies.
 
 To run the full suite of tests:
 ```bash
@@ -156,5 +174,5 @@ go test ./... -v
 
 ## 👤 Author
 **Mariam Amr Helal**
-* GitHub: [Insert Your GitHub Link Here]
+* LinkedIn: [https://www.linkedin.com/in/mariam-helal-464994212/](https://www.linkedin.com/in/mariam-helal-464994212/)
 * DockerHub: [https://hub.docker.com/r/mariamamr286/wallet-api](https://hub.docker.com/r/mariamamr286/wallet-api)
