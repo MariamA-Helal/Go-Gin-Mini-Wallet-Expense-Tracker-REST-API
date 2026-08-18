@@ -5,17 +5,32 @@ import (
 	"testing"
 	"wallet-api/internal/models"
 
-	"github.com/glebarez/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// setupTestDB prepares a fast in-memory SQLite database for testing (Shared across the repository package)
+// setupTestDB connects to a local PostgreSQL instance dedicated for testing
 func setupTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	// 1. Direct DSN for the TEST database ONLY
+	dsn := "host=localhost user=postgres password=0000 dbname=wallet_db port=5432 sslmode=disable TimeZone=Africa/Cairo"
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("Failed to connect to test database: %v", err)
 	}
-	db.AutoMigrate(&models.User{}, &models.Wallet{}, &models.Transaction{})
+
+	// 2. DROP TABLES FIRST
+	err = db.Migrator().DropTable(&models.Transaction{}, &models.Wallet{}, &models.User{}, &models.Budget{})
+	if err != nil {
+		t.Fatalf("Failed to drop tables: %v", err)
+	}
+
+	// 3. Migrate the schema
+	err = db.AutoMigrate(&models.User{}, &models.Wallet{}, &models.Transaction{}, &models.Budget{})
+	if err != nil {
+		t.Fatalf("Failed to migrate test database: %v", err)
+	}
+
 	return db
 }
 
@@ -218,6 +233,15 @@ func TestTransfer_TableDriven(t *testing.T) {
 				}
 				if w2.Balance != tt.expectedW2Bal {
 					t.Errorf("Expected receiver balance %d, got %d", tt.expectedW2Bal, w2.Balance)
+				}
+			}
+
+			if tt.expectErr {
+				var currentSender models.Wallet
+				db.First(&currentSender, tt.senderArg)
+
+				if currentSender.ID != 0 && currentSender.Balance != 10000 {
+					t.Errorf("Rollback Failed! Sender balance was deducted. Expected 10000, got %d", currentSender.Balance)
 				}
 			}
 		})
