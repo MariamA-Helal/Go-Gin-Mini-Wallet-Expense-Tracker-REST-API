@@ -116,17 +116,19 @@ func (r *walletRepo) Transfer(ctx context.Context, senderWalletID, receiverWalle
 		}
 
 		// Lock the first wallet row (lower ID)
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&firstWallet, firstID).Error; err != nil {
+		// FIX: Query by user_id since firstID and secondID represent User IDs, not Wallet Primary Keys.
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", firstID).First(&firstWallet).Error; err != nil {
 			return errors.New("wallet not found")
 		}
 		// Lock the second wallet row (higher ID)
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&secondWallet, secondID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", secondID).First(&secondWallet).Error; err != nil {
 			return errors.New("wallet not found")
 		}
 
 		// Map sender and receiver pointers based on locked wallet instances
+		// FIX: Compare senderWalletID (User ID) directly against firstID (User ID) instead of Wallet PK to correctly assign roles.
 		var sender, receiver *models.Wallet
-		if senderWalletID == firstWallet.ID {
+		if senderWalletID == firstID {
 			sender = &firstWallet
 			receiver = &secondWallet
 		} else {
